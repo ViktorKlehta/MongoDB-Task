@@ -1,0 +1,291 @@
+
+aggregate - обрабатывает несколько документов 
+lookup -  левое внешнее соединение с коллекцией
+unwind - Каждый выходной документ является входным документом, в котором значение поля массива заменяется элементом.
+replaceRoot - Заменяет входной документ указанным документом
+project - передаёт вперёд используемый документ
+group - документы разделяются на группы в соответствии с "ключом группы"
+mergeObjects - документы разделяются на группы в соответствии с "ключом группы"
+
+----№1 (одним запросом)---------------------------------------
+
+db.ships.aggregate([
+    {
+        $match: {
+            NameShip: "Doctor-Professor Schwarzenholt"
+        }
+    },
+    {
+        $lookup: {
+            from: 'go_to_fish',
+            localField: "_id",
+            foreignField: "ship",
+            as: "go_to_fish"
+        }
+    },
+    {
+        $unwind: "$go_to_fish"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$go_to_fish"
+        }
+    }
+])
+
+------№2------------------------------------------------------
+
+db.go_to_fish.aggregate([
+    {
+        $unwind: "$Crew"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$Crew"
+        }
+    },
+    {
+        $group: {
+            _id: "$id_p"
+        }
+    },
+    {
+        $lookup: {
+            from: 'persons',
+            localField: "_id",
+            foreignField: "_id",
+            as: "person"
+        }
+    },
+    {
+        $unwind: "$person"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$person"
+        }
+    }
+])
+
+-----№3------------------------------------------------------
+
+db.go_to_fish.aggregate([
+    {
+        $unwind: "$Crew"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$Crew"
+        }
+    },
+    {
+        $group: {
+            _id: "$id_p",
+            sailings_count: {
+                $count: { }
+            }
+        }
+    },
+    {
+        $lookup: {
+            from: 'persons',
+            localField: "_id",
+            foreignField: "_id",
+            as: "person"
+        },
+    },
+    {
+        $unwind: "$person"
+    },
+    {
+        $project: {
+            _id: "$person._id",
+            Surname: "$person.Surname",
+            FirstName: "$person.FirstName",
+            sailings_count: true
+        }
+    }
+])
+
+----№4-------------------------------------------------------
+
+db.go_to_fish.aggregate([
+    {
+        $unwind: "$Fish"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$Fish"
+        }
+    },
+    {
+        $group: {
+            _id: "$id_f",
+            totalWeight: {
+                $sum: "$weight"
+            }
+        }
+    },
+    {
+        $lookup: {
+            from: 'fishes',
+            localField: "_id",
+            foreignField: "_id",
+            as: "fish"
+        }
+    },
+    {
+        $replaceRoot: {
+            newRoot: {
+                $mergeObjects: [
+                    { $arrayElemAt: [ "$fish", 0 ] },
+                    "$$ROOT"
+                ]
+            }
+        }
+    },
+    {
+        $project: {
+            fish: 0
+        }
+    }
+])
+
+-----№5-------------------------------------------------------
+
+db.go_to_fish.aggregate([
+    {
+        $unwind: "$Crew"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$Crew"
+        }
+    },
+    {
+        $group: {
+            _id: "$id_p",
+            positions_held: {
+                $addToSet: "$post",
+            }
+        }
+    },
+    {
+        $lookup: {
+            from: 'persons',
+            localField: "_id",
+            foreignField: "_id",
+            as: "person"
+        }
+    },
+    {
+        $replaceRoot: {
+            newRoot: {
+                $mergeObjects: [
+                    { $arrayElemAt: [ "$person", 0 ] },
+                    "$$ROOT"
+                ]
+            }
+        }
+    },
+    {
+        $project: {
+            person: 0
+        }
+    }
+]);
+
+----№6-------------------------------------------------------
+
+db.visited_fishing_spot.aggregate([
+    {
+        $unwind: "$id_shs"
+    },
+    {
+        $project: {
+            _id: false,
+            id_shs: true
+        }
+    },
+    {
+        $sortByCount: "$id_shs"
+    },
+    {
+        $limit: 1
+    },
+    {
+        $lookup: {
+            from: 'fishing_spot',
+            localField: "_id",
+            foreignField: "_id",
+            as: "shoal"
+        }
+    },
+    {
+        $replaceRoot: {
+            newRoot: {
+                $mergeObjects: [
+                    { $arrayElemAt: [ "$shoal", 0 ] },
+                    "$$ROOT"
+                ]
+            }
+        }
+    },
+    {
+        $project: {
+            shoal: 0
+        }
+    }
+])
+
+-------№7----------------------------------------------------
+
+db.visited_fishing_spot.aggregate([
+    {
+        $unwind: "$id_shs"
+    },
+    {
+        $replaceRoot: {
+            newRoot: "$id_shs"
+        }
+    },
+    {
+        $group: {
+            _id: "$id_sh",
+            total_weight: {
+                $sum: "$weight"
+            }
+        }
+    },
+    {
+        $sort: {
+            total_weight: -1
+        }
+    },
+    {
+        $limit: 1
+    },
+    {
+        $lookup: {
+            from: 'shoals',
+            localField: "_id",
+            foreignField: "_id",
+            as: "shoal"
+        }
+    },
+    {
+        $replaceRoot: {
+            newRoot: {
+                $mergeObjects: [
+                    { $arrayElemAt: [ "$shoal", 0 ] },
+                    "$$ROOT"
+                ]
+            }
+        }
+    },
+    {
+        $project: {
+            shoal: 0
+        }
+    }
+])
